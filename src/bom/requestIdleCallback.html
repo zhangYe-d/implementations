@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AnimationFrame</title>
+	</head>
+	<style>
+		#root {
+			width: 200px;
+			height: 200px;
+			background-color: aqua;
+		}
+	</style>
+	<body>
+		<div id="root"></div>
+		<script>
+			let start = Date.now()
+			function step(animationStart) {
+				console.log('time: ', animationStart)
+
+				if (!start) {
+					start = animationStart
+				}
+
+				const ele = document.getElementById('root')
+
+				ele.style.transform = `translateX(${animationStart * 0.1}px)`
+
+				if (animationStart - start < 2000) {
+					window.requestAnimationFrame(step)
+				}
+			}
+
+			function sleep(duration) {
+				const start = Date.now()
+				while (Date.now() - start < duration) {}
+			}
+
+			function callback1(t) {
+				console.log('t1: ', t)
+			}
+
+			function callback2(t) {
+				console.log('t2: ', t)
+			}
+
+			function startLog() {
+				console.log(1)
+				window.requestAnimationFrame(startLog)
+			}
+
+			// window.requestAnimationFrame(startLog)
+
+			const taskQueue = [
+				() => console.log('t1'),
+				() => console.log('t2'),
+				() => console.log('t3'),
+				() => console.log('t4'),
+				() => console.log('t5'),
+			]
+
+			function idleCallback(IdleDeadline) {
+				console.log('deadline: ', IdleDeadline.timeRemaining())
+
+				const task = taskQueue.shift()
+
+				if (task) {
+					task()
+				}
+
+				if (Date.now() - start < 5000 && task) {
+					window.requestIdleCallback(idleCallback)
+				}
+			}
+
+			// setInterval(() => console.log('timeInterval'), 1)
+
+			window.requestIdleCallback(idleCallback)
+
+			console.log('hah')
+		</script>
+	</body>
+</html>

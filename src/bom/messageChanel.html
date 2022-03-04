@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AnimationFrame</title>
+	</head>
+	<style>
+		#root {
+			width: 200px;
+			height: 200px;
+			background-color: aqua;
+		}
+	</style>
+	<body>
+		<div id="root"></div>
+		<script>
+			const chanel = new MessageChannel()
+
+			let penddingCallback = null
+			let unitFrameTime = 1000 / 60
+			let deadFrameTime
+			let timeRemaining = () => deadFrameTime - performance.now()
+
+			chanel.port1.onmessage = () => {
+				if (timeRemaining() > 0) {
+					if (penddingCallback) {
+						penddingCallback({ timeRemaining })
+					}
+				}
+			}
+
+			// window.requestIdleCallback = callback => {
+			// 	window.requestAnimationFrame(rafTime => {
+			// 		console.log('raf: ', rafTime)
+			// 		deadFrameTime = rafTime + unitFrameTime
+
+			// 		penddingCallback = callback
+			// 		chanel.port2.postMessage('hh')
+			// 	})
+			// }
+
+			const taskQueue = [
+				() => console.log('t1'),
+				() => console.log('t2'),
+				() => console.log('t3'),
+				() => console.log('t4'),
+				() => console.log('t5'),
+			]
+
+			function idleCallback(IdleDeadline) {
+				console.log('deadline: ', IdleDeadline.timeRemaining())
+
+				const task = taskQueue.shift()
+
+				if (task) {
+					task()
+				}
+
+				if (taskQueue.length) {
+					window.requestIdleCallback(idleCallback)
+				}
+			}
+
+			window.requestIdleCallback(idleCallback)
+		</script>
+	</body>
+</html>
