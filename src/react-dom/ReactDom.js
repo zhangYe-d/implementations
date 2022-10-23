@@ -54,7 +54,21 @@ const updateDom = (dom, prevProps, nextProps) => {
 		})
 }
 
-const reconcilationChildren = (workInProgressFiber, elements) => {
+const updateFunctionComponent = fiber => {
+	const elements = [fiber.type(fiber.props)]
+
+	reconciliationChildren(fiber, elements)
+}
+
+const updateHostComponent = fiber => {
+	if (!fiber.dom) {
+		fiber.dom = createDom(fiber)
+	}
+
+	reconciliationChildren(fiber, fiber.props.children)
+}
+
+const reconciliationChildren = (workInProgressFiber, elements) => {
 	let oldFiber =
 		workInProgressFiber.alternate && workInProgressFiber.alternate.child
 	let index = 0
@@ -110,12 +124,11 @@ const reconcilationChildren = (workInProgressFiber, elements) => {
 }
 
 const performUnitOfWork = fiber => {
-	if (!fiber.dom) {
-		fiber.dom = createDom(fiber)
+	if (fiber.type instanceof Function) {
+		updateFunctionComponent(fiber)
+	} else {
+		updateHostComponent(fiber)
 	}
-
-	const elements = fiber.props.children
-	reconcilationChildren(fiber, elements)
 
 	if (fiber.child) {
 		return fiber.child
@@ -137,19 +150,31 @@ let workInProgressRoot = null
 let currentRoot = null
 let deletions = null
 
+const commitDeletion = (parentDom, fiber) => {
+	if (fiber.dom) {
+		parentDom.removeChild(fiber.dom)
+	} else {
+		commitDeletion(parentDom, fiber.child)
+	}
+}
+
 const commitWork = fiber => {
 	if (!fiber) {
 		return
 	}
 
-	const parentDom = fiber.parent.dom
+	let parentDomFiber = fiber.parent
+	while (!parentDomFiber.dom) {
+		parentDomFiber = parentDomFiber.parent
+	}
+	const parentDom = parentDomFiber.dom
 
 	if (fiber.effectTag === 'PLACEMENT' && fiber.dom !== null) {
 		parentDom.appendChild(fiber.dom)
 	} else if (fiber.effectTag === 'UPDATE' && fiber.dom !== null) {
 		updateDom(fiber.dom, fiber.alternate.props, fiber.props)
 	} else if (fiber.effectTag === 'DELETION') {
-		parentDom.removeChild(fiber.dom)
+		commitDeletion(parentDom, fiber)
 	}
 
 	commitWork(fiber.child)
