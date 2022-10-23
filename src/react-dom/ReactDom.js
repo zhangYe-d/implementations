@@ -1,10 +1,14 @@
+const isEvent = propName => propName.startsWith('on')
+const isProperty = propName => propName !== 'children' && !isEvent(propName)
+const isNew = (prevProps, nextProps) => propName =>
+	prevProps[propName] !== nextProps[propName]
+const isGone = (prevProps, nextProps) => propName => !(propName in nextProps)
+
 const createDom = fiber => {
 	const HtmlElement =
 		fiber.type === 'TEXT_ELEMENT'
 			? document.createTextNode('')
 			: document.createElement(fiber.type)
-
-	const isProperty = propName => propName !== 'children'
 
 	Object.keys(fiber.props)
 		.filter(isProperty)
@@ -15,31 +19,86 @@ const createDom = fiber => {
 	return HtmlElement
 }
 
-const performUnitOfWork = fiber => {
-	if (!fiber.dom) {
-		fiber.dom = createDom(fiber)
-	}
+const updateDom = (dom, prevProps, nextProps) => {
+	Object.keys(prevProps)
+		.filter(isProperty)
+		.filter(isGone)
+		.forEach(propName => {
+			dom[propName] = ''
+		})
 
-	if (fiber.parent) {
-		fiber.parent.dom.appendChild(fiber.dom)
-	}
+	Object.keys(prevProps)
+		.filter(isEvent)
+		.filter(
+			propName =>
+				!(propName in nextProps) || isNew(prevProps, nextProps)(propName)
+		)
+		.forEach(propName => {
+			const eventType = propName.toLowerCase.substring(2)
+			dom.removeEventListener(eventType, prevProps[propName])
+		})
 
-	const elements = fiber.props.children
+	Object.keys(nextProps)
+		.filter(isProperty)
+		.filter(isNew)
+		.forEach(propName => {
+			dom[propName] = nextProps[propName]
+		})
+
+	Object.keys(nextProps)
+		.filter(isEvent)
+		.filter(isNew)
+		.forEach(propName => {
+			const eventType = propName.toLowerCase.substring(2)
+			dom.addEventListener(eventType, nextProps[propName])
+		})
+}
+
+const reconcilationChildren = (workInProgressFiber, elements) => {
+	let oldFiber =
+		workInProgressFiber.alternate && workInProgressFiber.alternate.child
 	let index = 0
 	let prevSibling = null
 
-	while (index < elements.length) {
+	while (index < elements.length || oldFiber !== null) {
 		const element = elements[index]
+		let newFiber = null
 
-		const newFiber = {
-			type: element.type,
-			props: element.props,
-			parent: fiber,
-			dom: null,
+		const sameType = element && oldFiber && element.type === oldFiber.type
+
+		if (sameType) {
+			newFiber = {
+				type: oldFiber.type,
+				props: element.props,
+				parent: workInProgressFiber,
+				dom: oldFiber.dom,
+				alternate: oldFiber,
+				effectTag: 'UPDATE',
+			}
+		}
+
+		if (element && !sameType) {
+			newFiber = {
+				type: element.type,
+				props: element.props,
+				parent: workInProgressFiber,
+				dom: null,
+				alternate: null,
+				effectTag: 'PLACEMENT',
+			}
+		}
+
+		if (oldFiber && !sameType) {
+			oldFiber.effectTag = 'DELETION'
+			deletions.push(oldFiber)
+		}
+
+		if (oldFiber) {
+			oldFiber = oldFiber.sibling
 		}
 
 		if (index === 0) {
-			fiber.child = newFiber
+			workInProgressFiber.child = newFiber
 		} else {
 			prevSibling.sibling = newFiber
 		}
@@ -48,6 +107,15 @@ const performUnitOfWork = fiber => {
 
 		index++
 	}
+}
+
+const performUnitOfWork = fiber => {
+	if (!fiber.dom) {
+		fiber.dom = createDom(fiber)
+	}
+
+	const elements = fiber.props.children
+	reconcilationChildren(fiber, elements)
 
 	if (fiber.child) {
 		return fiber.child
@@ -66,6 +134,8 @@ const performUnitOfWork = fiber => {
 
 let nextUnitOfWork = null
 let workInProgressRoot = null
+let currentRoot = null
+let deletions = null
 
 const commitWork = fiber => {
 	if (!fiber) {
@@ -73,15 +143,24 @@ const commitWork = fiber => {
 	}
 
 	const parentDom = fiber.parent.dom
-	parentDom.appendChild(fiber.dom)
+
+	if (fiber.effectTag === 'PLACEMENT' && fiber.dom !== null) {
+		parentDom.appendChild(fiber.dom)
+	} else if (fiber.effectTag === 'UPDATE' && fiber.dom !== null) {
+		updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+	} else if (fiber.effectTag === 'DELETION') {
+		parentDom.removeChild(fiber.dom)
+	}
 
 	commitWork(fiber.child)
 	commitWork(fiber.sibling)
 }
 
 const commitRoot = () => {
+	deletions.forEach(commitWork)
 	commitWork(workInProgressRoot.child)
 
+	currentRoot = workInProgressRoot
 	workInProgressRoot = null
 }
 
@@ -108,7 +187,10 @@ const render = (element, container) => {
 		props: {
 			children: [element],
 		},
+		alternate: currentRoot,
 	}
+
+	deletions = []
 
 	nextUnitOfWork = workInProgressRoot
 
