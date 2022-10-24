@@ -16,6 +16,13 @@ const createDom = fiber => {
 			HtmlElement[propName] = fiber.props[propName]
 		})
 
+	Object.keys(fiber.props)
+		.filter(isEvent)
+		.forEach(propName => {
+			const eventType = propName.toLowerCase().substring(2)
+			HtmlElement.addEventListener(eventType, fiber.props[propName])
+		})
+
 	return HtmlElement
 }
 
@@ -34,7 +41,7 @@ const updateDom = (dom, prevProps, nextProps) => {
 				!(propName in nextProps) || isNew(prevProps, nextProps)(propName)
 		)
 		.forEach(propName => {
-			const eventType = propName.toLowerCase.substring(2)
+			const eventType = propName.toLowerCase().substring(2)
 			dom.removeEventListener(eventType, prevProps[propName])
 		})
 
@@ -49,12 +56,51 @@ const updateDom = (dom, prevProps, nextProps) => {
 		.filter(isEvent)
 		.filter(isNew)
 		.forEach(propName => {
-			const eventType = propName.toLowerCase.substring(2)
+			const eventType = propName.toLowerCase().substring(2)
 			dom.addEventListener(eventType, nextProps[propName])
 		})
 }
 
+const useState = initial => {
+	const oldHook = workInProgressFiber.alternate?.hooks?.[hookIndex]
+	const hook = {
+		state: oldHook ? oldHook.state : initial,
+		queue: [],
+	}
+
+	hookIndex++
+
+	const actions = oldHook?.queue || []
+	actions.forEach(action => {
+		if (typeof action === 'function') {
+			hook.state = action(hook.state)
+		} else {
+			hook.state = action
+		}
+	})
+
+	const setState = action => {
+		hook.queue.push(action)
+
+		workInProgressRoot = {
+			dom: currentRoot.dom,
+			props: currentRoot.props,
+			alternate: currentRoot,
+		}
+		nextUnitOfWork = workInProgressRoot
+		deletions = []
+	}
+
+	workInProgressFiber.hooks.push(hook)
+
+	return [hook.state, setState]
+}
+
 const updateFunctionComponent = fiber => {
+	workInProgressFiber = fiber
+	workInProgressFiber.hooks = []
+	hookIndex = 0
+
 	const elements = [fiber.type(fiber.props)]
 
 	reconciliationChildren(fiber, elements)
@@ -74,7 +120,7 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 	let index = 0
 	let prevSibling = null
 
-	while (index < elements.length || oldFiber !== null) {
+	while (index < elements.length || oldFiber != null) {
 		const element = elements[index]
 		let newFiber = null
 
@@ -113,7 +159,7 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 
 		if (index === 0) {
 			workInProgressFiber.child = newFiber
-		} else {
+		} else if (element) {
 			prevSibling.sibling = newFiber
 		}
 
@@ -149,6 +195,8 @@ let nextUnitOfWork = null
 let workInProgressRoot = null
 let currentRoot = null
 let deletions = null
+let workInProgressFiber = null
+let hookIndex = null
 
 const commitDeletion = (parentDom, fiber) => {
 	if (fiber.dom) {
@@ -226,4 +274,4 @@ const render = (element, container) => {
 	// container.appendChild(HtmlElement)
 }
 
-export default { render }
+export default { render, useState }

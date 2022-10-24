@@ -3,11 +3,23 @@ import ReactDom from '../../../src/react-dom/ReactDom.js'
 
 const App = props => {
 	const { name, age } = props
+	const [count, setCount] = ReactDom.useState(0)
 	return React.createElement(
 		'div',
 		{ id: 'foo' },
-		React.createElement('p', null, name),
-		React.createElement('a', null, age)
+		React.createElement(
+			'p',
+			{
+				onClick: () => {
+					setCount(count + 1)
+					console.log('hhah')
+				},
+				id: 'fooo',
+			},
+			name
+		),
+		React.createElement('a', null, age),
+		React.createElement('h1', null, count)
 	)
 }
 
