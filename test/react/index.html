@@ -7,7 +7,16 @@
 		<title>Document</title>
 	</head>
 	<body>
-		<h1 id="root"></h1>
-		<script src="./index.js" type="module"></script>
+		<h1 id="root">
+			<p id="faa">faa</p>
+			<p id="foo">foo</p>
+			<p id="bar">bar</p>
+			<p id="bak">bak</p>
+		</h1>
+		<!-- <script src="./index.js" type="module"></script> -->
+		<script>
+			const foo = document.getElementById('foo')
+			foo.addEventListener('click', () => foo.parentNode.insertBefore(foo, bak))
+		</script>
 	</body>
 </html>

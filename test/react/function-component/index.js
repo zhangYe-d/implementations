@@ -3,7 +3,7 @@ import ReactDom from '../../../src/react-dom/ReactDom.js'
 
 const App = props => {
 	const { name, age } = props
-	const [count, setCount] = ReactDom.useState(0)
+	const [reverse, setReverse] = ReactDom.useState(false)
 	return React.createElement(
 		'div',
 		{ id: 'foo' },
@@ -11,15 +11,21 @@ const App = props => {
 			'p',
 			{
 				onClick: () => {
-					setCount(count + 1)
+					setReverse(!reverse)
 					console.log('hhah')
 				},
 				id: 'fooo',
 			},
 			name
 		),
-		React.createElement('a', null, age),
-		React.createElement('h1', null, count)
+		reverse
+			? React.createElement('a', { key: 'a' }, age)
+			: React.createElement('h1', { key: 'h1' }, age + 100),
+
+		reverse
+			? React.createElement('h1', { key: 'h1' }, name)
+			: React.createElement('a', { key: 'a' }, name.toUpperCase()),
+		React.createElement('i', { key: 'i' }, name)
 	)
 }
 

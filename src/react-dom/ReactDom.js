@@ -1,3 +1,7 @@
+const PLACEMENT = 'PLACEMENT'
+const UPDATE = 'UPDATE'
+const DELETION = 'DELETION'
+
 const isEvent = propName => propName.startsWith('on')
 const isProperty = propName => propName !== 'children' && !isEvent(propName)
 const isNew = (prevProps, nextProps) => propName =>
@@ -114,59 +118,202 @@ const updateHostComponent = fiber => {
 	reconciliationChildren(fiber, fiber.props.children)
 }
 
+const getHostSibling = fiber => {
+	let siblingNode = fiber.sibling
+	if (siblingNode) {
+		if (siblingNode.alternate === null) {
+			return null
+		}
+
+		while (!siblingNode.dom) {
+			siblingNode = siblingNode.child
+		}
+
+		return siblingNode.dom
+	}
+	return null
+}
+
+const insertOrAppendPlacementNode = (parentDom, dom, sibling) => {
+	if (sibling) {
+		parentDom.insertBefore(dom, sibling)
+	} else {
+		parentDom.appendChild(dom)
+	}
+}
+
+const createChild = (parentFiber, element) => {
+	return {
+		type: element.type,
+		key: element.key,
+		props: element.props,
+		parent: parentFiber,
+		dom: null,
+		alternate: null,
+		effectTag: PLACEMENT,
+	}
+}
+
+const updateElement = (parentFiber, oldFiber, element) => {
+	return {
+		type: oldFiber.type,
+		props: element.props,
+		key: oldFiber.key,
+		parent: parentFiber,
+		dom: oldFiber.dom,
+		alternate: oldFiber,
+		effectTag: UPDATE,
+	}
+}
+
+const updateSlot = (parentFiber, oldFiber, element) => {
+	if (oldFiber.key === element.key) {
+		return oldFiber.type === element.type
+			? updateElement(parentFiber, oldFiber, element)
+			: createChild(parentFiber, element)
+	}
+
+	return null
+}
+
+const updateFromMap = (map, parentFiber, newIndex, element) => {
+	const matchedFiber = map.get(element.key || newIndex) || null
+	if (matchedFiber) {
+		return updateSlot(parentFiber, matchedFiber, element)
+	}
+
+	return createChild(parentFiber, element)
+}
+
+const placeChild = (newFiber, lastPlacedIndex, newIndex) => {
+	newFiber.index = newIndex
+
+	const current = newFiber.alternate
+	if (current) {
+		const oldIndex = current.index
+
+		if (oldIndex < lastPlacedIndex) {
+			newFiber.effectTag = PLACEMENT
+			return lastPlacedIndex
+		} else {
+			return oldIndex
+		}
+	} else {
+		return lastPlacedIndex
+	}
+}
+
+const deleteChild = fiber => {
+	fiber.effectTag = DELETION
+	deletions.push(fiber)
+}
+
+const deleteRemainingChildren = currentFirstChild => {
+	let childToDelete = currentFirstChild
+	while (childToDelete != null) {
+		deleteChild(childToDelete)
+		childToDelete = childToDelete.sibling
+	}
+}
+
+const mapRemainingChilden = currentFirstChild => {
+	const map = new Map()
+	let childToMap = currentFirstChild
+	while (childToMap) {
+		let key = childToMap.key || childToMap.index
+		map.set(key, childToMap)
+
+		childToMap = childToMap.sibling
+	}
+
+	return map
+}
+
 const reconciliationChildren = (workInProgressFiber, elements) => {
 	let oldFiber =
 		workInProgressFiber.alternate && workInProgressFiber.alternate.child
-	let index = 0
+	let lastPlacedIndex = 0
+	let newIndex = 0
 	let prevSibling = null
 
-	while (index < elements.length || oldFiber != null) {
-		const element = elements[index]
-		let newFiber = null
+	while (newIndex < elements.length && oldFiber != null) {
+		const element = elements[newIndex]
+		const newFiber = updateSlot(workInProgressFiber, oldFiber, element)
 
-		const sameType = element && oldFiber && element.type === oldFiber.type
-
-		if (sameType) {
-			newFiber = {
-				type: oldFiber.type,
-				props: element.props,
-				parent: workInProgressFiber,
-				dom: oldFiber.dom,
-				alternate: oldFiber,
-				effectTag: 'UPDATE',
-			}
+		if (newFiber === null) {
+			break
 		}
 
-		if (element && !sameType) {
-			newFiber = {
-				type: element.type,
-				props: element.props,
-				parent: workInProgressFiber,
-				dom: null,
-				alternate: null,
-				effectTag: 'PLACEMENT',
-			}
-		}
-
-		if (oldFiber && !sameType) {
-			oldFiber.effectTag = 'DELETION'
-			deletions.push(oldFiber)
+		if (newFiber && newFiber.alternate === null) {
+			deleteChild(oldFiber)
 		}
 
 		if (oldFiber) {
 			oldFiber = oldFiber.sibling
 		}
 
-		if (index === 0) {
+		lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIndex)
+
+		if (newIndex === 0) {
 			workInProgressFiber.child = newFiber
 		} else if (element) {
 			prevSibling.sibling = newFiber
 		}
 
 		prevSibling = newFiber
-
-		index++
+		newIndex++
 	}
+
+	if (newIndex === elements.length) {
+		if (oldFiber) {
+			deleteRemainingChildren(oldFiber)
+		}
+		return
+	}
+
+	if (oldFiber == null) {
+		for (; newIndex < elements.length; newIndex++) {
+			const newFiber = createChild(workInProgressFiber, elements[newIndex])
+
+			lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIndex)
+
+			if (newIndex === 0) {
+				workInProgressFiber.child = newFiber
+			} else {
+				prevSibling.sibling = newFiber
+			}
+
+			prevSibling = newFiber
+		}
+
+		return
+	}
+
+	const existingChildren = mapRemainingChilden(oldFiber)
+
+	for (; newIndex < elements.length; newIndex++) {
+		const newFiber = updateFromMap(
+			existingChildren,
+			workInProgressFiber,
+			newIndex,
+			elements[newIndex]
+		)
+		if (newFiber.alternate !== null) {
+			existingChildren.delete(newFiber.key || newIndex)
+		}
+
+		lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIndex)
+
+		if (newIndex === 0) {
+			workInProgressFiber.child = newFiber
+		} else {
+			prevSibling.sibling = newFiber
+		}
+
+		prevSibling = newFiber
+	}
+
+	existingChildren.forEach(child => deleteChild(child))
 }
 
 const performUnitOfWork = fiber => {
@@ -210,6 +357,7 @@ const commitWork = fiber => {
 	if (!fiber) {
 		return
 	}
+	console.log(fiber.effectTag)
 
 	let parentDomFiber = fiber.parent
 	while (!parentDomFiber.dom) {
@@ -217,12 +365,15 @@ const commitWork = fiber => {
 	}
 	const parentDom = parentDomFiber.dom
 
-	if (fiber.effectTag === 'PLACEMENT' && fiber.dom !== null) {
-		parentDom.appendChild(fiber.dom)
-	} else if (fiber.effectTag === 'UPDATE' && fiber.dom !== null) {
+	if (fiber.effectTag === PLACEMENT && fiber.dom !== null) {
+		const sibling = getHostSibling(fiber)
+
+		insertOrAppendPlacementNode(parentDom, fiber.dom, sibling)
+	} else if (fiber.effectTag === UPDATE && fiber.dom !== null) {
 		updateDom(fiber.dom, fiber.alternate.props, fiber.props)
-	} else if (fiber.effectTag === 'DELETION') {
+	} else if (fiber.effectTag === DELETION) {
 		commitDeletion(parentDom, fiber)
+		return
 	}
 
 	commitWork(fiber.child)
