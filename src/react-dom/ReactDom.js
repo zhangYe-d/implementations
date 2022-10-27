@@ -1,6 +1,10 @@
-const PLACEMENT = 'PLACEMENT'
-const UPDATE = 'UPDATE'
-const DELETION = 'DELETION'
+import {
+	Placement,
+	Update,
+	ChildDeletion,
+	PlacementAndUpdate,
+	NoFlag,
+} from './ReactFiberFlags'
 
 const isEvent = propName => propName.startsWith('on')
 const isProperty = propName => propName !== 'children' && !isEvent(propName)
@@ -108,14 +112,17 @@ const updateFunctionComponent = fiber => {
 	const elements = [fiber.type(fiber.props)]
 
 	reconciliationChildren(fiber, elements)
+
+	return fiber.child
 }
 
 const updateHostComponent = fiber => {
-	if (!fiber.dom) {
-		fiber.dom = createDom(fiber)
-	}
+	// if (!fiber.dom) {
+	// 	fiber.dom = createDom(fiber)
+	// }
 
 	reconciliationChildren(fiber, fiber.props.children)
+	return fiber.child
 }
 
 const getHostSibling = fiber => {
@@ -150,7 +157,7 @@ const createChild = (parentFiber, element) => {
 		parent: parentFiber,
 		dom: null,
 		alternate: null,
-		effectTag: PLACEMENT,
+		flags: parentFiber.flags & (Placement === NoFlag) ? Placement : NoFlag,
 	}
 }
 
@@ -162,7 +169,7 @@ const updateElement = (parentFiber, oldFiber, element) => {
 		parent: parentFiber,
 		dom: oldFiber.dom,
 		alternate: oldFiber,
-		effectTag: UPDATE,
+		flags: NoFlag,
 	}
 }
 
@@ -193,7 +200,7 @@ const placeChild = (newFiber, lastPlacedIndex, newIndex) => {
 		const oldIndex = current.index
 
 		if (oldIndex < lastPlacedIndex) {
-			newFiber.effectTag = PLACEMENT
+			newFiber.flags = PLACEMENT
 			return lastPlacedIndex
 		} else {
 			return oldIndex
@@ -204,7 +211,7 @@ const placeChild = (newFiber, lastPlacedIndex, newIndex) => {
 }
 
 const deleteChild = fiber => {
-	fiber.effectTag = DELETION
+	fiber.flags = DELETION
 	deletions.push(fiber)
 }
 
@@ -316,26 +323,42 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 	existingChildren.forEach(child => deleteChild(child))
 }
 
+const beginWork = fiber => {
+	if (typeof fiber.type === 'function') {
+		return updateFunctionComponent(fiber)
+	}
+
+	return updateHostComponent(fiber)
+}
+const completeUnitOfWork = () => {}
+
 const performUnitOfWork = fiber => {
-	if (fiber.type instanceof Function) {
-		updateFunctionComponent(fiber)
-	} else {
-		updateHostComponent(fiber)
+	let next = fiber
+	while (next) {
+		next = beginWork(next)
 	}
 
-	if (fiber.child) {
-		return fiber.child
-	}
+	return completeUnitOfWork(fiber)
 
-	let nextFiber = fiber
+	// if (fiber.type instanceof Function) {
+	// 	updateFunctionComponent(fiber)
+	// } else {
+	// 	updateHostComponent(fiber)
+	// }
 
-	while (nextFiber) {
-		if (nextFiber.sibling) {
-			return nextFiber.sibling
-		}
+	// if (fiber.child) {
+	// 	return fiber.child
+	// }
 
-		nextFiber = nextFiber.parent
-	}
+	// let nextFiber = fiber
+
+	// while (nextFiber) {
+	// 	if (nextFiber.sibling) {
+	// 		return nextFiber.sibling
+	// 	}
+
+	// 	nextFiber = nextFiber.parent
+	// }
 }
 
 let nextUnitOfWork = null
@@ -357,7 +380,7 @@ const commitWork = fiber => {
 	if (!fiber) {
 		return
 	}
-	console.log(fiber.effectTag)
+	console.log(fiber.flags)
 
 	let parentDomFiber = fiber.parent
 	while (!parentDomFiber.dom) {
@@ -365,13 +388,13 @@ const commitWork = fiber => {
 	}
 	const parentDom = parentDomFiber.dom
 
-	if (fiber.effectTag === PLACEMENT && fiber.dom !== null) {
+	if (fiber.flags === PLACEMENT && fiber.dom !== null) {
 		const sibling = getHostSibling(fiber)
 
 		insertOrAppendPlacementNode(parentDom, fiber.dom, sibling)
-	} else if (fiber.effectTag === UPDATE && fiber.dom !== null) {
+	} else if (fiber.flags === UPDATE && fiber.dom !== null) {
 		updateDom(fiber.dom, fiber.alternate.props, fiber.props)
-	} else if (fiber.effectTag === DELETION) {
+	} else if (fiber.flags === DELETION) {
 		commitDeletion(parentDom, fiber)
 		return
 	}
