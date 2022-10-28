@@ -40,7 +40,7 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 
 	Object.keys(prevProps)
 		.filter(isProperty)
-		.filter(isGone)
+		.filter(isGone(prevProps, nextProps))
 		.forEach(propName => {
 			if (updateQueue === null) {
 				updateQueue = []
@@ -62,7 +62,7 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 
 	Object.keys(nextProps)
 		.filter(isEvent)
-		.filter(isNew)
+		.filter(isNew(prevProps, nextProps))
 		.forEach(propName => {
 			const eventType = propName.toLowerCase().substring(2)
 			dom.addEventListener(eventType, nextProps[propName])
@@ -70,7 +70,7 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 
 	Object.keys(nextProps)
 		.filter(isProperty)
-		.filter(isNew)
+		.filter(isNew(prevProps, nextProps))
 		.forEach(propName => {
 			if (updateQueue === null) {
 				updateQueue = []
@@ -107,6 +107,7 @@ const useState = initial => {
 			dom: currentRoot.dom,
 			props: currentRoot.props,
 			alternate: currentRoot,
+			tag: currentRoot.tag,
 			flags: NoFlag,
 			deletions: null,
 			firstEffect: null,
@@ -400,7 +401,6 @@ const completeWork = (current, unitOfWork) => {
 			case FunctionComponent:
 				break
 			case HostComponent: {
-				// console.log(unitOfWork)
 				unitOfWork.dom = createDom(unitOfWork)
 				appendAllChildren(unitOfWork.dom, unitOfWork.child)
 				break
