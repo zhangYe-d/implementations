@@ -4,7 +4,8 @@ import {
 	ChildDeletion,
 	PlacementAndUpdate,
 	NoFlag,
-} from './ReactFiberFlags'
+} from './ReactFiberFlags.js'
+import { HostRoot, HostComponent, FunctionComponent } from './ReactFiberTags.js'
 
 const isEvent = propName => propName.startsWith('on')
 const isProperty = propName => propName !== 'children' && !isEvent(propName)
@@ -34,12 +35,18 @@ const createDom = fiber => {
 	return HtmlElement
 }
 
-const updateDom = (dom, prevProps, nextProps) => {
+const prepareUpdate = (dom, prevProps, nextProps) => {
+	let updateQueue = null
+
 	Object.keys(prevProps)
 		.filter(isProperty)
 		.filter(isGone)
 		.forEach(propName => {
-			dom[propName] = ''
+			if (updateQueue === null) {
+				updateQueue = []
+			}
+			updateQueue.push(propName)
+			updateQueue.push('')
 		})
 
 	Object.keys(prevProps)
@@ -54,19 +61,25 @@ const updateDom = (dom, prevProps, nextProps) => {
 		})
 
 	Object.keys(nextProps)
-		.filter(isProperty)
-		.filter(isNew)
-		.forEach(propName => {
-			dom[propName] = nextProps[propName]
-		})
-
-	Object.keys(nextProps)
 		.filter(isEvent)
 		.filter(isNew)
 		.forEach(propName => {
 			const eventType = propName.toLowerCase().substring(2)
 			dom.addEventListener(eventType, nextProps[propName])
 		})
+
+	Object.keys(nextProps)
+		.filter(isProperty)
+		.filter(isNew)
+		.forEach(propName => {
+			if (updateQueue === null) {
+				updateQueue = []
+			}
+			updateQueue.push(propName)
+			updateQueue.push(nextProps[propName])
+		})
+
+	return updateQueue
 }
 
 const useState = initial => {
@@ -94,9 +107,12 @@ const useState = initial => {
 			dom: currentRoot.dom,
 			props: currentRoot.props,
 			alternate: currentRoot,
+			flags: NoFlag,
+			deletions: null,
+			firstEffect: null,
+			lastEffect: null,
 		}
 		nextUnitOfWork = workInProgressRoot
-		deletions = []
 	}
 
 	workInProgressFiber.hooks.push(hook)
@@ -117,10 +133,6 @@ const updateFunctionComponent = fiber => {
 }
 
 const updateHostComponent = fiber => {
-	// if (!fiber.dom) {
-	// 	fiber.dom = createDom(fiber)
-	// }
-
 	reconciliationChildren(fiber, fiber.props.children)
 	return fiber.child
 }
@@ -157,7 +169,9 @@ const createChild = (parentFiber, element) => {
 		parent: parentFiber,
 		dom: null,
 		alternate: null,
-		flags: parentFiber.flags & (Placement === NoFlag) ? Placement : NoFlag,
+		deletions: null,
+		flags: Placement,
+		tag: element.type instanceof Function ? FunctionComponent : HostComponent,
 	}
 }
 
@@ -169,7 +183,9 @@ const updateElement = (parentFiber, oldFiber, element) => {
 		parent: parentFiber,
 		dom: oldFiber.dom,
 		alternate: oldFiber,
+		deletions: null,
 		flags: NoFlag,
+		tag: oldFiber.tag,
 	}
 }
 
@@ -200,7 +216,7 @@ const placeChild = (newFiber, lastPlacedIndex, newIndex) => {
 		const oldIndex = current.index
 
 		if (oldIndex < lastPlacedIndex) {
-			newFiber.flags = PLACEMENT
+			newFiber.flags |= Placement
 			return lastPlacedIndex
 		} else {
 			return oldIndex
@@ -210,9 +226,12 @@ const placeChild = (newFiber, lastPlacedIndex, newIndex) => {
 	}
 }
 
-const deleteChild = fiber => {
-	fiber.flags = DELETION
-	deletions.push(fiber)
+const deleteChild = (parentFiber, fiber) => {
+	if (parentFiber.deletions === null) {
+		parentFiber.deletions = []
+		parentFiber.flags |= ChildDeletion
+	}
+	parentFiber.deletions.push(fiber)
 }
 
 const deleteRemainingChildren = currentFirstChild => {
@@ -323,48 +342,111 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 	existingChildren.forEach(child => deleteChild(child))
 }
 
-const beginWork = fiber => {
-	if (typeof fiber.type === 'function') {
-		return updateFunctionComponent(fiber)
+const appendAllChildren = (parentNode, fiber) => {
+	let currentFirstChild = fiber
+	while (currentFirstChild) {
+		if (currentFirstChild.dom) {
+			parentNode.appendChild(currentFirstChild.dom)
+			currentFirstChild.flags &= ~Placement
+		} else {
+			appendAllChildren(parentNode, currentFirstChild.child)
+		}
+
+		currentFirstChild = currentFirstChild.sibling
+	}
+}
+
+const markEffect = nextEffect => {
+	if (nextEffect.parent && (nextEffect.parent.flags & Placement) !== NoFlag) {
+		return
 	}
 
-	return updateHostComponent(fiber)
+	if (workInProgressRoot.firstEffect === null) {
+		workInProgressRoot.firstEffect = nextEffect
+		workInProgressRoot.lastEffect = nextEffect
+	} else {
+		workInProgressRoot.lastEffect.nextEffect = nextEffect
+	}
 }
-const completeUnitOfWork = () => {}
+
+const beginWork = fiber => {
+	switch (fiber.tag) {
+		case FunctionComponent:
+			return updateFunctionComponent(fiber)
+		case HostComponent:
+			return updateHostComponent(fiber)
+		case HostRoot:
+			return updateHostComponent(fiber)
+		default:
+			break
+	}
+}
+
+const completeWork = (current, unitOfWork) => {
+	if (current) {
+		const newProps = unitOfWork.props
+		const oldProps = current.props
+
+		if (unitOfWork.dom) {
+			const updateQueue = prepareUpdate(unitOfWork.dom, oldProps, newProps)
+			unitOfWork.updateQueue = updateQueue
+
+			if (updateQueue) {
+				unitOfWork.flags |= Update
+			}
+		}
+	} else {
+		switch (unitOfWork.tag) {
+			case FunctionComponent:
+				break
+			case HostComponent: {
+				// console.log(unitOfWork)
+				unitOfWork.dom = createDom(unitOfWork)
+				appendAllChildren(unitOfWork.dom, unitOfWork.child)
+				break
+			}
+			case HostRoot:
+				break
+			default:
+				break
+		}
+	}
+}
+
+const completeUnitOfWork = unitOfWork => {
+	let completedWork = unitOfWork
+
+	do {
+		completeWork(completedWork.alternate, completedWork)
+
+		if (completedWork.flags !== NoFlag) {
+			markEffect(completedWork)
+		}
+
+		if (completedWork.sibling) {
+			return completedWork.sibling
+		}
+
+		if (completedWork.parent) {
+			completedWork = completedWork.parent
+		} else {
+			return null
+		}
+	} while (true)
+}
 
 const performUnitOfWork = fiber => {
-	let next = fiber
-	while (next) {
-		next = beginWork(next)
+	let next = beginWork(fiber)
+	if (next) {
+		return next
+	} else {
+		return completeUnitOfWork(fiber)
 	}
-
-	return completeUnitOfWork(fiber)
-
-	// if (fiber.type instanceof Function) {
-	// 	updateFunctionComponent(fiber)
-	// } else {
-	// 	updateHostComponent(fiber)
-	// }
-
-	// if (fiber.child) {
-	// 	return fiber.child
-	// }
-
-	// let nextFiber = fiber
-
-	// while (nextFiber) {
-	// 	if (nextFiber.sibling) {
-	// 		return nextFiber.sibling
-	// 	}
-
-	// 	nextFiber = nextFiber.parent
-	// }
 }
 
 let nextUnitOfWork = null
 let workInProgressRoot = null
 let currentRoot = null
-let deletions = null
 let workInProgressFiber = null
 let hookIndex = null
 
@@ -376,36 +458,67 @@ const commitDeletion = (parentDom, fiber) => {
 	}
 }
 
-const commitWork = fiber => {
-	if (!fiber) {
+const commitPlacement = (parentDom, fiber) => {
+	if (fiber.dom) {
+		const sibling = getHostSibling(fiber)
+		insertOrAppendPlacementNode(parentDom, fiber.dom, sibling)
+	} else {
+		commitPlacement(parentDom, fiber.child)
+	}
+}
+
+const commitUpdate = (dom, updateQueue) => {
+	for (let i = 0; i < updateQueue.length; i += 2) {
+		const propName = updateQueue[i]
+		const propValue = updateQueue[i + 1]
+		dom[propName] = propValue
+	}
+}
+
+const commitWork = effectToCommit => {
+	if (!effectToCommit) {
 		return
 	}
-	console.log(fiber.flags)
 
-	let parentDomFiber = fiber.parent
+	let parentDomFiber = effectToCommit.parent
 	while (!parentDomFiber.dom) {
 		parentDomFiber = parentDomFiber.parent
 	}
 	const parentDom = parentDomFiber.dom
 
-	if (fiber.flags === PLACEMENT && fiber.dom !== null) {
-		const sibling = getHostSibling(fiber)
-
-		insertOrAppendPlacementNode(parentDom, fiber.dom, sibling)
-	} else if (fiber.flags === UPDATE && fiber.dom !== null) {
-		updateDom(fiber.dom, fiber.alternate.props, fiber.props)
-	} else if (fiber.flags === DELETION) {
-		commitDeletion(parentDom, fiber)
-		return
+	if ((effectToCommit.flags & ChildDeletion) !== NoFlag) {
+		effectToCommit.deletions.forEach(child => commitDeletion(parentDom, child))
+		effectToCommit.flags &= ~ChildDeletion
 	}
 
-	commitWork(fiber.child)
-	commitWork(fiber.sibling)
+	switch (effectToCommit.flags) {
+		case Placement: {
+			commitPlacement(parentDom, effectToCommit)
+			effectToCommit.flags &= ~Placement
+			break
+		}
+		case PlacementAndUpdate: {
+			commitPlacement(parentDom, effectToCommit)
+			effectToCommit.flags &= ~Placement
+			commitUpdate(effectToCommit.dom, effectToCommit.updateQueue)
+			effectToCommit.flags &= ~Update
+			break
+		}
+		case Update: {
+			commitUpdate(effectToCommit.dom, effectToCommit.updateQueue)
+			effectToCommit.flags &= ~Update
+			break
+		}
+
+		default:
+			break
+	}
+
+	commitWork(effectToCommit.nextEffect)
 }
 
 const commitRoot = () => {
-	deletions.forEach(commitWork)
-	commitWork(workInProgressRoot.child)
+	commitWork(workInProgressRoot.firstEffect)
 
 	currentRoot = workInProgressRoot
 	workInProgressRoot = null
@@ -435,17 +548,14 @@ const render = (element, container) => {
 			children: [element],
 		},
 		alternate: currentRoot,
+		flags: NoFlag,
+		tag: HostRoot,
+		firstEffect: null,
+		lastEffect: null,
+		deletions: null,
 	}
 
-	deletions = []
-
 	nextUnitOfWork = workInProgressRoot
-
-	// element.props.children.forEach(child => {
-	// 	render(child, HtmlElement)
-	// })
-
-	// container.appendChild(HtmlElement)
 }
 
 export default { render, useState }

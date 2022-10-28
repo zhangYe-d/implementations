@@ -43,6 +43,7 @@ const createElement = (type, config, ...children) => {
 const createTextElement = text => {
 	return {
 		type: 'TEXT_ELEMENT',
+		key: null,
 		props: {
 			nodeValue: text,
 			children: [],
