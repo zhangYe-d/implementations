@@ -8,7 +8,9 @@ import {
 import { HostRoot, HostComponent, FunctionComponent } from './ReactFiberTags.js'
 
 const isEvent = propName => propName.startsWith('on')
-const isProperty = propName => propName !== 'children' && !isEvent(propName)
+const isStyle = propName => propName === 'style'
+const isProperty = propName =>
+	propName !== 'children' && !isStyle(propName) && !isEvent(propName)
 const isNew = (prevProps, nextProps) => propName =>
 	prevProps[propName] !== nextProps[propName]
 const isGone = (prevProps, nextProps) => propName => !(propName in nextProps)
@@ -25,6 +27,12 @@ const createDom = fiber => {
 			HtmlElement[propName] = fiber.props[propName]
 		})
 
+	if (fiber.props.style) {
+		Object.keys(fiber.props.style).forEach(styleName => {
+			HtmlElement.style[styleName] = fiber.props.style[styleName]
+		})
+	}
+
 	Object.keys(fiber.props)
 		.filter(isEvent)
 		.forEach(propName => {
@@ -37,6 +45,9 @@ const createDom = fiber => {
 
 const prepareUpdate = (dom, prevProps, nextProps) => {
 	let updateQueue = null
+	let style = null
+	const prevStyle = prevProps.style || {}
+	const nextStyle = nextProps.style || {}
 
 	Object.keys(prevProps)
 		.filter(isProperty)
@@ -49,6 +60,16 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 			updateQueue.push('')
 		})
 
+	Object.keys(prevStyle)
+		.filter(isGone(prevStyle, nextStyle))
+		.forEach(styleName => {
+			if (updateQueue === null) {
+				style = []
+			}
+			style.push(styleName)
+			style.push('')
+		})
+
 	Object.keys(prevProps)
 		.filter(isEvent)
 		.filter(
@@ -58,6 +79,16 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 		.forEach(propName => {
 			const eventType = propName.toLowerCase().substring(2)
 			dom.removeEventListener(eventType, prevProps[propName])
+		})
+
+	Object.keys(nextStyle)
+		.filter(isNew(prevStyle, nextStyle))
+		.forEach(styleName => {
+			if (updateQueue === null) {
+				style = []
+			}
+			style.push(styleName)
+			style.push(nextStyle[styleName])
 		})
 
 	Object.keys(nextProps)
@@ -78,6 +109,12 @@ const prepareUpdate = (dom, prevProps, nextProps) => {
 			updateQueue.push(propName)
 			updateQueue.push(nextProps[propName])
 		})
+
+	if (style) {
+		updateQueue ||= []
+		updateQueue.push('style')
+		updateQueue.push(style)
+	}
 
 	return updateQueue
 }
@@ -475,9 +512,18 @@ const commitPlacement = (parentDom, fiber) => {
 
 const commitUpdate = (dom, updateQueue) => {
 	for (let i = 0; i < updateQueue.length; i += 2) {
-		const propName = updateQueue[i]
-		const propValue = updateQueue[i + 1]
-		dom[propName] = propValue
+		if (updateElement[i] === 'style') {
+			const style = updateQueue[i]
+			for (let j = 0; j < style.length; j += 2) {
+				const styleName = style[j]
+				const styleValue = style[j + 1]
+				dom.style[styleName] = styleValue
+			}
+		} else {
+			const propName = updateQueue[i]
+			const propValue = updateQueue[i + 1]
+			dom[propName] = propValue
+		}
 	}
 }
 

@@ -6,7 +6,7 @@ const App = props => {
 	const [reverse, setReverse] = ReactDom.useState(false)
 	return React.createElement(
 		'div',
-		{ id: 'foo' },
+		{ id: 'foo', style: { margin: '0 300px', paddingTop: '200px' } },
 		React.createElement(
 			'p',
 			{
@@ -16,7 +16,7 @@ const App = props => {
 				},
 				id: 'fooo',
 			},
-			undefined
+			name
 		),
 		reverse
 			? React.createElement('a', { key: 'a' }, age)
