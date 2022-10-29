@@ -16,7 +16,7 @@ const App = props => {
 				},
 				id: 'fooo',
 			},
-			name
+			undefined
 		),
 		reverse
 			? React.createElement('a', { key: 'a' }, age)
@@ -25,7 +25,8 @@ const App = props => {
 		reverse
 			? React.createElement('h1', { key: 'h1' }, name)
 			: React.createElement('a', { key: 'a' }, name.toUpperCase()),
-		React.createElement('i', { key: 'i' }, name)
+		React.createElement('i', { key: 'i' }, name),
+		...(reverse ? [React.createElement('h1', { key: '1111f' }, name)] : [])
 	)
 }
 

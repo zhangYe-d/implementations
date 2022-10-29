@@ -232,6 +232,7 @@ const deleteChild = (parentFiber, fiber) => {
 		parentFiber.deletions = []
 		parentFiber.flags |= ChildDeletion
 	}
+
 	parentFiber.deletions.push(fiber)
 }
 
@@ -272,7 +273,7 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 		}
 
 		if (newFiber && newFiber.alternate === null) {
-			deleteChild(oldFiber)
+			deleteChild(workInProgressFiber, oldFiber)
 		}
 
 		if (oldFiber) {
@@ -340,7 +341,7 @@ const reconciliationChildren = (workInProgressFiber, elements) => {
 		prevSibling = newFiber
 	}
 
-	existingChildren.forEach(child => deleteChild(child))
+	existingChildren.forEach(child => deleteChild(workInProgressFiber, child))
 }
 
 const appendAllChildren = (parentNode, fiber) => {
@@ -358,7 +359,11 @@ const appendAllChildren = (parentNode, fiber) => {
 }
 
 const markEffect = nextEffect => {
-	if (nextEffect.parent && (nextEffect.parent.flags & Placement) !== NoFlag) {
+	if (
+		nextEffect.parent &&
+		(nextEffect.parent.flags & Placement) !== NoFlag &&
+		nextEffect.flags === Placement
+	) {
 		return
 	}
 
@@ -367,6 +372,7 @@ const markEffect = nextEffect => {
 		workInProgressRoot.lastEffect = nextEffect
 	} else {
 		workInProgressRoot.lastEffect.nextEffect = nextEffect
+		workInProgressRoot.lastEffect = nextEffect
 	}
 }
 
@@ -450,11 +456,11 @@ let currentRoot = null
 let workInProgressFiber = null
 let hookIndex = null
 
-const commitDeletion = (parentDom, fiber) => {
+const commitDeletion = fiber => {
 	if (fiber.dom) {
-		parentDom.removeChild(fiber.dom)
+		fiber.dom.parentNode.removeChild(fiber.dom)
 	} else {
-		commitDeletion(parentDom, fiber.child)
+		commitDeletion(fiber.child)
 	}
 }
 
@@ -487,7 +493,7 @@ const commitWork = effectToCommit => {
 	const parentDom = parentDomFiber.dom
 
 	if ((effectToCommit.flags & ChildDeletion) !== NoFlag) {
-		effectToCommit.deletions.forEach(child => commitDeletion(parentDom, child))
+		effectToCommit.deletions.forEach(commitDeletion)
 		effectToCommit.flags &= ~ChildDeletion
 	}
 
