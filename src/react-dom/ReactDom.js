@@ -158,9 +158,18 @@ const useState = initial => {
 	return [hook.state, setState]
 }
 
+const useEffect = (fn, deps) => {
+	const effectHook = {
+		fn,
+		deps,
+	}
+	workInProgressFiber.effectHooks.push(effectHook)
+}
+
 const updateFunctionComponent = fiber => {
 	workInProgressFiber = fiber
 	workInProgressFiber.hooks = []
+	workInProgressFiber.effectHooks = []
 	hookIndex = 0
 
 	const elements = [fiber.type(fiber.props)]
@@ -493,6 +502,20 @@ let currentRoot = null
 let workInProgressFiber = null
 let hookIndex = null
 
+const commitEffect = fiber => {
+	fiber.effectHooks.forEach(effectHook => {
+		const { fn, deps } = effectHook
+		const oldHook = fiber.alternate?.effectHook
+
+		if (!oldHook || !deps) {
+			fn()
+		} else {
+			const depsChanged = deps.some((dep, index) => dep !== oldHook.deps[index])
+			depsChanged && fn()
+		}
+	})
+}
+
 const commitDeletion = fiber => {
 	if (fiber.dom) {
 		fiber.dom.parentNode.removeChild(fiber.dom)
@@ -530,6 +553,10 @@ const commitUpdate = (dom, updateQueue) => {
 const commitWork = effectToCommit => {
 	if (!effectToCommit) {
 		return
+	}
+
+	if (effectToCommit.tag === FunctionComponent) {
+		commitEffect(effectToCommit)
 	}
 
 	let parentDomFiber = effectToCommit.parent
@@ -610,4 +637,4 @@ const render = (element, container) => {
 	nextUnitOfWork = workInProgressRoot
 }
 
-export default { render, useState }
+export default { render, useState, useEffect }

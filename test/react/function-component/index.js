@@ -4,6 +4,9 @@ import ReactDom from '../../../src/react-dom/ReactDom.js'
 const App = props => {
 	const { name, age } = props
 	const [reverse, setReverse] = ReactDom.useState(false)
+	ReactDom.useEffect(() => {
+		console.log(reverse)
+	})
 	return React.createElement(
 		'div',
 		{ id: 'foo', style: { margin: '0 300px', paddingTop: '200px' } },
