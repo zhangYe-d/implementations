@@ -1,5 +1,5 @@
-import React from '../../../src/react/react.js'
-import ReactDom from '../../../src/react-dom/ReactDom.js'
+import React from '../../../packages/react/react.js'
+import ReactDom from '../../../packages/react-dom/ReactDom.js'
 
 const App = props => {
 	const { name, age } = props

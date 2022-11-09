@@ -4,6 +4,7 @@ import {
 	ChildDeletion,
 	PlacementAndUpdate,
 	NoFlag,
+	PassiveEffect,
 } from './ReactFiberFlags.js'
 import { HostRoot, HostComponent, FunctionComponent } from './ReactFiberTags.js'
 
@@ -159,10 +160,19 @@ const useState = initial => {
 }
 
 const useEffect = (fn, deps) => {
+	const oldHook = workInProgressFiber.alternate?.effectHooks?.[effectHookIndex]
 	const effectHook = {
 		fn,
 		deps,
 	}
+
+	if (oldHook) {
+		effectHook.destroy = oldHook.destroy
+	}
+
+	effectHookIndex++
+
+	workInProgressFiber.flags |= PassiveEffect
 	workInProgressFiber.effectHooks.push(effectHook)
 }
 
@@ -171,6 +181,7 @@ const updateFunctionComponent = fiber => {
 	workInProgressFiber.hooks = []
 	workInProgressFiber.effectHooks = []
 	hookIndex = 0
+	effectHookIndex = 0
 
 	const elements = [fiber.type(fiber.props)]
 
@@ -501,17 +512,24 @@ let workInProgressRoot = null
 let currentRoot = null
 let workInProgressFiber = null
 let hookIndex = null
+let effectHookIndex = null
 
 const commitEffect = fiber => {
 	fiber.effectHooks.forEach(effectHook => {
-		const { fn, deps } = effectHook
+		const { fn, deps, destroy } = effectHook
 		const oldHook = fiber.alternate?.effectHook
 
+		if (typeof destroy === 'function') {
+			destroy()
+		}
+
 		if (!oldHook || !deps) {
-			fn()
+			effectHook.destroy = fn()
 		} else {
 			const depsChanged = deps.some((dep, index) => dep !== oldHook.deps[index])
-			depsChanged && fn()
+			if (depsChanged) {
+				effectHook.destroy = fn()
+			}
 		}
 	})
 }
@@ -557,9 +575,12 @@ const commitWork = effectToCommit => {
 
 	if (effectToCommit.tag === FunctionComponent) {
 		commitEffect(effectToCommit)
+		effectToCommit.flags &= ~PassiveEffect
 	}
 
-	let parentDomFiber = effectToCommit.parent
+	// workInProgressRoot的子fiber不会指回workInProgressRoot
+	let parentDomFiber = effectToCommit.parent || workInProgressRoot
+
 	while (!parentDomFiber.dom) {
 		parentDomFiber = parentDomFiber.parent
 	}
