@@ -35,6 +35,13 @@ const createBrowserHistory = () => {
 	let listeners = createEvent()
 
 	globalHistory.replaceState({ ...globalHistory.state }, '')
+	window.addEventListener('popstate', handlePop)
+
+	function handlePop() {
+		let nextAction = Action.Pop
+
+		applyTx(nextAction)
+	}
 
 	function createHref(to) {
 		return typeof to === 'string' ? to : createPath(to)
