@@ -2,22 +2,27 @@ import { useContext, createContext, useRef, useState, useEffect } from 'react'
 import { BrowserRouter as Router } from './router'
 import { Routes } from './routes'
 import { Route } from './route'
+import { Outlet } from './outlet'
 import { useNavigator } from './hooks'
 
 function App() {
-	const navigator = useNavigator()
-
 	return (
 		<div className='App'>
-			<button onClick={() => navigator('product')}>点我切换页面</button>
 			<Router>
+				<Button />
 				<Routes>
-					<Route path='/' element={<Home />} />
-					<Route path='product' element={<Product />} />
+					<Route path='/' element={<Home />}>
+						<Route path='product' element={<Product />} />
+					</Route>
 				</Routes>
 			</Router>
 		</div>
 	)
+}
+
+function Button() {
+	const navigator = useNavigator()
+	return <button onClick={() => navigator('product')}>点我切换页面</button>
 }
 
 function Product() {
@@ -25,7 +30,12 @@ function Product() {
 }
 
 function Home() {
-	return <div>Home</div>
+	return (
+		<div>
+			<div>Home</div>
+			<Outlet />
+		</div>
+	)
 }
 
 export default App

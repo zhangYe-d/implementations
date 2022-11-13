@@ -8,12 +8,15 @@ export function Routes(props) {
 }
 
 function createRoutesFromChildren(children) {
-	const routes = React.Children.map(children, child => {
-		return {
+	let routes = []
+	React.Children.forEach(children, child => {
+		let route = {
 			path: child.props.path,
 			element: child.props.element,
 			children: createRoutesFromChildren(child.props.children),
 		}
+
+		routes.push(route)
 	})
 
 	return routes

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createBrowserHistory } from 'history'
-import { RouterContext } from './context'
+import { NavigatorContext } from './context'
 
 export function BrowserRouter(props) {
 	const historyRef = useRef()
@@ -18,10 +18,10 @@ export function BrowserRouter(props) {
 	}, [setState])
 
 	return (
-		<RouterContext.Provider
+		<NavigatorContext.Provider
 			value={{ location: state.location, navigator: historyRef.current }}
 		>
 			{props.children}
-		</RouterContext.Provider>
+		</NavigatorContext.Provider>
 	)
 }
