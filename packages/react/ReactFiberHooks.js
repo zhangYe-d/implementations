@@ -152,4 +152,19 @@ const updateState = state => {
 	return updateReducer(BasicReducer, state)
 }
 
+const mountRef = initialState => {
+	const hook = mountWorkInProgressHook()
+	const ref = { current: initialState }
+
+	hook.memoizedState = ref
+
+	return ref
+}
+
+const updateRef = initialState => {
+	const hook = updateWorkInProgressHook()
+
+	return hook.memoizedState
+}
+
 export {}
