@@ -30,13 +30,38 @@ class Promise {
 
 	static race(promises) {
 		return new Promise((resolve, reject) => {
-			promises.forEach(promise => promise.then(resolve, reject))
+			promises.forEach(promise => {
+				if (promise && promise.then) {
+					promise.then(resolve, reject)
+				} else {
+					resolve(promise)
+				}
+			})
 		})
 	}
 
 	static any(promises) {
 		return new Promise((resolve, reject) => {
-			promises.forEach(promise => promise.then(resolve))
+			promises.forEach(promise => {
+				if (promise && promise.then) {
+					promise.then(resolve)
+				} else {
+					resolve(promise)
+				}
+			})
+		})
+	}
+
+	static all(promises) {
+		let values = []
+		return new Promise((resolve, reject) => {
+			promises.forEach(promise => {
+				if (promise && promise.then) {
+					promise(values.push, reject)
+				} else {
+					resolve(promise)
+				}
+			})
 		})
 	}
 
