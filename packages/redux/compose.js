@@ -9,15 +9,4 @@ function compose(...funcs) {
 				a(b(...arg))
 	)
 }
-
 export default compose
-
-function foo() {
-	console.log(1)
-}
-
-function bar() {
-	console.log(2)
-}
-
-compose(foo, bar)()

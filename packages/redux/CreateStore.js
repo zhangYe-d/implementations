@@ -15,7 +15,11 @@ function createEvent() {
 	}
 }
 
-function createStore(initialReducer) {
+function createStore(initialReducer, enhancer) {
+	if (typeof enhancer === 'function') {
+		return enhancer(createStore)(initialReducer)
+	}
+
 	let state = null
 	let reducer = initialReducer
 
@@ -24,6 +28,10 @@ function createStore(initialReducer) {
 	function dispatch(action) {
 		state = reducer(state, action)
 		return dispatch
+	}
+
+	function getState() {
+		return state
 	}
 
 	return {
