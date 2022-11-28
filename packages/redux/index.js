@@ -1,6 +1,6 @@
 import combineReducers from './CombineReducer'
 import createStore from './CreateStore'
+import compose from './compose'
+import applyMiddleware from './ApplyMiddleware'
 
-function applyMiddleware() {}
-
-export { createStore, applyMiddleware, combineReducers }
+export { createStore, applyMiddleware, combineReducers, compose }

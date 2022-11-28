@@ -23,6 +23,7 @@ function createStore(initialReducer) {
 
 	function dispatch(action) {
 		state = reducer(state, action)
+		return dispatch
 	}
 
 	return {
