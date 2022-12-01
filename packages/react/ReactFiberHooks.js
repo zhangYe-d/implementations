@@ -167,4 +167,33 @@ const updateRef = initialState => {
 	return hook.memoizedState
 }
 
+const mountMemo = (create, deps) => {
+	const hook = mountWorkInProgressHook()
+	hook.memoizedState = [create(), deps]
+
+	return hook.memoisedState[0]
+}
+
+const updateMemo = (create, deps) => {
+	const hook = updateWorkInProgressHook()
+
+	if (areHookInputsEqual(hook.memoizedState[1], deps)) {
+		return hook.memoizedState[0]
+	}
+
+	hook.memoizedState = [create(), deps]
+
+	return hook.memoizedState[0]
+}
+
+const areHookInputsEqual = (prevDeps, nextDeps) => {
+	for (let i = 0; i < prevDeps.length; i++) {
+		if (prevDeps[i] !== nextDeps[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
 export {}

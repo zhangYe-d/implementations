@@ -6,10 +6,31 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Document</title>
 	</head>
+	<style>
+		.bfc {
+			overflow: hidden;
+			height: 500px;
+			background-color: lightblue;
+		}
+
+		.top {
+			margin: 20px 0;
+			height: 100px;
+			background-color: blue;
+			/* overflow: hidden; */
+		}
+
+		.down {
+			margin: 10px 0;
+			height: 100px;
+			background-color: red;
+			/* overflow: hidden; */
+		}
+	</style>
 	<body>
-		<!-- <script src="./index.js" type="module"></script> -->
-		<script>
-			window.addEventListener('popstate', e => console.log(e))
-		</script>
+		<div class="bfc">
+			<div class="top"></div>
+			<div class="down"></div>
+		</div>
 	</body>
 </html>
