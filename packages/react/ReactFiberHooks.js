@@ -171,7 +171,7 @@ const mountMemo = (create, deps) => {
 	const hook = mountWorkInProgressHook()
 	hook.memoizedState = [create(), deps]
 
-	return hook.memoisedState[0]
+	return hook.memoizedState[0]
 }
 
 const updateMemo = (create, deps) => {
@@ -194,6 +194,27 @@ const areHookInputsEqual = (prevDeps, nextDeps) => {
 	}
 
 	return true
+}
+
+const mountCallback = (callback, deps) => {
+	const hook = mountWorkInProgressHook()
+	hook.memoizedState = [callback, deps]
+
+	return callback
+}
+
+const updateCallback = (callback, deps) => {
+	const hook = updateWorkInProgressHook()
+	const prevDeps = hook.memoizedState[1]
+	const nextDeps = deps
+
+	if (areHookInputsEqual(prevDeps, nextDeps)) {
+		return memoizedState[0]
+	}
+
+	hook.memoizedState = [callback, nextDeps]
+
+	return callback
 }
 
 export {}
