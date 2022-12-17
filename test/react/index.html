@@ -7,30 +7,40 @@
 		<title>Document</title>
 	</head>
 	<style>
-		.bfc {
-			overflow: hidden;
-			height: 500px;
-			background-color: lightblue;
+		* {
+			padding: 0;
+			margin: 0;
 		}
-
-		.top {
-			margin: 20px 0;
-			height: 100px;
-			background-color: blue;
-			/* overflow: hidden; */
+		.flex {
+			display: flex;
+			flex-direction: column;
+			min-height: 100vh;
+			background-color: azure;
 		}
-
-		.down {
-			margin: 10px 0;
-			height: 100px;
+		.first {
+			flex: 0 1 200px;
 			background-color: red;
-			/* overflow: hidden; */
+		}
+		.second {
+			flex: 1 0 auto;
+			background-color: green;
+		}
+		.third {
+			flex: 0 1 200px;
+			background-color: blue;
+		}
+
+		.content {
+			height: 1000px;
 		}
 	</style>
 	<body>
-		<div class="bfc">
-			<div class="top"></div>
-			<div class="down"></div>
+		<div class="flex">
+			<div class="first"></div>
+			<div class="second">
+				<div class="content"></div>
+			</div>
+			<div class="third"></div>
 		</div>
 	</body>
 </html>
