@@ -15,6 +15,8 @@ function deepClone(object, map = new Map()) {
 	if (Array.isArray(object)) {
 		result = []
 	}
+	// 防止对象循环引用
+	map.set(object, result)
 
 	for (let key in object) {
 		if (Object.hasOwn(object, key)) {
